@@ -10,7 +10,7 @@ date: "2026-09-14"
 # load packages
 library(tidyverse)
 
-# load data set
+# load dataset
 data <- read_csv("06 - CAS Predictive Modeling Case Competition- Dataset.csv")
 head(data)
 ```
