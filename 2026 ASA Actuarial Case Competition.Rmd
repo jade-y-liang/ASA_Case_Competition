@@ -9,8 +9,10 @@ date: "2026-09-14"
 ```{r}
 # load packages
 library(tidyverse)
+library(statmod)
+library(tweedie)
 
-# load data set
+# load dataset
 data <- read_csv("06 - CAS Predictive Modeling Case Competition- Dataset.csv")
 head(data)
 ```
@@ -83,34 +85,6 @@ data |>
   summarize(avg_amount_per_policyholder = mean(avg_amount))
 ```
 
-## Claim Amounts
-
-The amount column is heavily right-skewed (zero-inflated). Thus, it's not normally distributed. 
-
-```{r}
-hist(data$amount, freq = FALSE, breaks = 100, 
-     main = "Distribution of Claim Amount", xlab = "Amount")
-lines(density(data$amount), col = "red", lwd = 2)
-```
-
-The nonzero claim amounts are heavily right-skewed.  
-
-```{r}
-amount <- data |> 
-  filter(amount > 0) |> 
-  pull(amount)
-
-hist(amount,
-     main = "Distribution of Nonzero Claim Amount")
-```
-
-By performing log transformation, the nonzero claim amounts distribution appear to be skew normal. 
-
-```{r}
-hist(log(amount),
-     main = "Distribution of Log Transformed Nonzero Claim Amount")
-```
-
 ## Data Validation
 
 No claim amounts seem to exceed the insurance's maximum coverage. 
@@ -139,20 +113,92 @@ data |>
 
 # Model Training
 
-## GLM to Predict Expected Claim Amount
+## Data Preprocessing
+
+The given data set has 40,071 rows, but we are told that there are only 10,000 policyholders and 4 different coverage types. Since there's no duplicated rows, this means there are some policyholders who filed more than one claim. Thus, for policyholders who filed more than one claim per insurance coverage, we need to combine the amount for those claims. 
 
 ```{r}
-colnames(data)
+# check if there's any duplicate rows
+cat("There are ", sum(duplicated(data)), "duplicated rows.")
+```
+
+## GLM to Predict Expected Claim Amount (Full Model)
+
+Source: https://metricgate.com/blogs/tweedie-glm-insurance-pure-premium/
+
+### Personal Property
+
+```{r}
+training <- data |> filter(training_holdout == "training", 
+                           coverage == "Personal Property")
+holdout <- data |> filter(training_holdout == "holdout",
+                          coverage == "Personal Property")
 ```
 
 ```{r}
-head(data)
+# estimate Tweedie power index p
+
+profile <- tweedie_profile(
+  amount ~ class + study + gpa + greek + off_campus +
+    distance_to_campus + gender + sprinklered,
+  data = training, p.vec = seq(1.1, 1.6, by = 0.1),
+  link.power = 0, do.plot = FALSE
+)
+
+p_hat <- profile$p.max
+cat("Estimated Tweedie power p:", round(p_hat, 3))
+
+# fits Tweedie GLM w/ log link
+fit <- glm(
+  amount ~ class + study + gpa + greek + off_campus + 
+    distance_to_campus + sprinklered,
+  data = training,
+  family = tweedie(var.power = p_hat, link.power = 0),
+  control = glm.control(maxit = 15)
+)
 ```
 
 ```{r}
-# training_data <- data |> filter(training_holdout == "training")
-# glm(amount ~ class + study + gpa + greek, data = training_data, 
-#     family = Gamma(link = "log"))
+fit
+```
+
+```{r}
+holdout$pred  <- predict(fit, newdata = holdout, type = "response")
+training$pred <- fitted(fit)
+
+avg_amount <- holdout |>
+  group_by(risk_tier) |>
+  summarize(observed = mean(amount), 
+            fitted = mean(pred),
+            abs_difference = abs(observed - fitted))
+avg_amount
+```
+
+```{r}
+head(holdout[, c("student_id", "coverage", "risk_tier", "amount", "pred")], 50)
+```
+
+```{r}
+# barplot to compare actual average claim amount vs average predicted claim amount
+avg_amount |>
+  pivot_longer(cols = c(observed, fitted),
+               names_to = "type", values_to = "mean_pp") |>
+  mutate(type = factor(type, levels = c("observed", "fitted"),
+                       labels = c("Observed", "Fitted"))) |>
+  ggplot(aes(x = risk_tier, y = mean_pp, fill = type)) +
+  geom_col(position = "dodge") +
+  scale_fill_manual(values = c("Observed" = "royalblue4",
+                               "Fitted" = "goldenrod1")) +
+  labs(title = "Observed vs. Tweedie-fitted \n Average Personal Property Claim Amount (Full Model)",
+       x = "Risk Tier", y = "Mean Pure Premium", fill = "")
+```
+
+## Variable Selection
+
+Since there are more samples than variables ($n = 40071 > p = 11$), we use Backward Stepwise Selection to perform variable selection. 
+
+```{r}
+
 ```
 
 # Algorithm for Pricing
