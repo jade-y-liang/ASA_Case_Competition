@@ -122,6 +122,48 @@ The given data set has 40,071 rows, but we are told that there are only 10,000 p
 cat("There are ", sum(duplicated(data)), "duplicated rows.")
 ```
 
+```{r}
+#Combining Multiple Claims made by the same policyholder and covergae
+data <- data |>
+  group_by(student_id,coverage) |>
+  summarize(
+    amount= sum(amount, na.rm = TRUE),
+    name= first(name),
+    class=first(class),
+    study=first(study),
+    gpa=first(gpa),
+    greek= first(greek),
+    off_campus= first(off_campus),
+    distance_to_campus = first(distance_to_campus),
+    gender= first(gender),
+    sprinklered =first(sprinklered),
+    risk_tier= first(risk_tier),
+    training_holdout= first(training_holdout),
+    .groups = "drop"
+)
+```
+
+```{r}
+
+# Grouping the continous variables into 3 bands to make the pricing model easier to rate 
+data <- data |>
+  mutate(
+    gpa_interval= case_when(
+      gpa<2 ~ "Sub 2.0",
+      gpa<3 ~ "2.0 to 2.99",
+      gpa>=3 ~"Greater than 3"
+    ),
+
+  distance_interval= case_when(
+    distance_to_campus==0 ~ "Living On Campus",
+    distance_to_campus <=1 ~ "Living 1 mile or less from Campus",
+    distance_to_campus > 1 ~ " Living more than 1 mile from Campus"
+  )
+)
+
+```
+    
+
 ## GLM to Predict Expected Claim Amount (Full Model)
 
 Source: https://metricgate.com/blogs/tweedie-glm-insurance-pure-premium/
@@ -192,6 +234,167 @@ avg_amount |>
   labs(title = "Observed vs. Tweedie-fitted \n Average Personal Property Claim Amount (Full Model)",
        x = "Risk Tier", y = "Mean Pure Premium", fill = "")
 ```
+## Guest Medical
+```{r}
+# Seperating the Guest Medical Data into the training and holdout sets
+training <-data |> filter(training_holdout == "training",coverage== "Guest Medical")
+
+holdout<- data |> filter(training_holdout == "holdout", coverage == "Guest Medical")
+```
+
+```{r}
+# Estinmating the Tweedie Power Index 
+profile <- tweedie_profile(
+  amount ~ class + study + gpa_interval + greek + off_campus + distance_interval + gender + sprinklered,
+  data= training, p.vec=seq(1.1,1.6, by= 0.1),
+  link.power=0, do.plot= FALSE
+)
+
+p_est<- profile$p.max
+cat("Tweedie Power P Estimation:", round(p_est,3))
+
+# Using Log Link to Fit the Tweeide GLM  
+fit <- glm(
+  amount ~ class + study + gpa_interval + greek + off_campus+ distance_interval + gender + sprinklered,
+  data = training,
+  family= tweedie(var.power = p_est, link.power=0),
+  control = glm.control(maxit= 15)
+)
+```
+```{r}
+fit
+```
+
+```{r}
+holdout$pred <- predict(fit, newdata=holdout, type ="response")
+training$pred <- fitted(fit)
+
+avg_amount <- holdout |>
+  group_by(risk_tier) |>
+  summarize(observed = mean(amount), fitted= mean(pred), difference= abs(observed -fitted))
+avg_amount
+```
+```{r}
+head(holdout[,c("student_id","coverage","risk_tier","amount","pred")],50)
+```
+```{r}
+#Creating a Bar Graph to Compare the Average Claim amount against the predicted claim amount
+
+avg_amount |>
+  pivot_longer(cols= c(observed,fitted), names_to="type",values_to="mean_pp") |>
+  mutate(type = factor(type, levels= c("observed","fitted"), labels= c("Observed","Fitted"))) |>
+  ggplot(aes(x= risk_tier, y= mean_pp, fill= type)) + geom_col(position= "dodge") +
+  scale_fill_manual(values = c("Observed"="Blue","Fitted"="Red")) +
+  labs(title= "Observed Results Vs Tweedie-fitted \n Average Guest Medical Claim Amount",
+  x="Risk Tier", y= "Mean Pure Premium", fill ="")
+```
+### Liability 
+```{r}
+training <- data |>
+  filter(training_holdout=="training", coverage=="Liability")
+holdout <- data |> 
+filter(training_holdout== "holdout", coverage == "Liability")
+```
+
+```{r}
+#Estimating the Tweedie Power Index
+profile <- tweedie_profile(
+  amount ~ class + study+ gpa_interval+greek+off_campus+distance_interval+ gender+sprinklered,
+  data=training,
+  p.vec=seq(1.1,1.6,by=0.1),
+  link.power =0,
+  do.plot= FALSE
+)
+
+p_est <- profile$p.max
+cat("Estimated Tweedie Power P:", round(p_est,3))
+```
+```{r}
+# Using a Log link to fit the Tweedie GLM
+fit<- glm(
+  amount ~ class+ study+ gpa_interval+ greek+ off_campus+ distance_interval+ gender+sprinklered,
+  data=training,
+  family=tweedie(
+    var.power=p_est,
+    link.power=0
+),
+control=glm.control(maxit = 15)
+)
+```
+
+```{r}
+fit
+
+```
+
+```{r}
+# Predicting the expected claim amounts for holdout observations
+holdout$pred <- predict(
+  fit,
+  newdata= holdout,
+  type= "response"
+)
+
+training$pred <- fitted(fit)
+```
+```{r}
+
+avg_amount <- holdout |>
+  group_by(risk_tier) |>
+  summarize(
+    observed = mean(amount),
+    fitted = mean(pred),
+    difference= abs(observed-fitted)
+  )
+
+avg_amount
+```
+
+```{r}
+head(
+  holdout[, c("student_id", "coverage", "risk_tier", "amount", "pred")],
+  50
+)
+```
+
+```{r}
+
+avg_amount |>
+  pivot_longer(
+    cols=c(observed,fitted),
+    names_to="type",
+    values_to= "mean_pp"
+  ) |>
+
+  mutate(
+    type=factor(
+      type,
+      levels= c("observed","fitted"),
+      labels = c("Observed", "Fitted")
+  )
+) |>
+
+  ggplot(aes(
+    x= risk_tier,
+    y= mean_pp,
+    fill= type
+  )) +
+  geom_col(position="dodge")+
+  scale_fill_manual(
+    values= c(
+      "Observed"= "Blue",
+      "Fitted"= "Red"
+    )
+  ) +
+  labs(
+    title= "Observed Results vs. Tweedie-Fitted \n Average Liability Claim Amount",
+    x= "Risk Tier",
+    y= "Mean Pure Premium",
+    fill= ""
+  )
+  
+```
+
 
 ## Variable Selection
 
