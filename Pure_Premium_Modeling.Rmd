@@ -60,6 +60,25 @@ data <- data |>
 head(data)
 ```
 
+```{r}
+# Grouping the continous variables into 3 bands to make the pricing model easier to rate 
+data <- data |>
+  mutate(
+    gpa_interval= case_when(
+      gpa<1 ~ "Sub 1.0",
+      gpa<3 ~ "1.0 to 2.99",
+      gpa>=3 ~"Greater than 3"
+    ),
+    
+    distance_interval= case_when(
+    distance_to_campus==0 ~ "Living On Campus",
+    distance_to_campus <=1 ~ "Living 1 mile or less from Campus",
+    distance_to_campus > 1 ~ " Living more than 1 mile from Campus"
+  )
+)
+
+```
+
 # 1. Personal Property
 
 ## Full Model

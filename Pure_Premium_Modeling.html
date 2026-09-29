@@ -1582,6 +1582,21 @@ head(data)</code></pre>
 ## 6          2 Guest Medical            0 Redd… Juni… Scie… 0.610 Non-… On campus 
 ## # ℹ 5 more variables: distance_to_campus &lt;dbl&gt;, gender &lt;chr&gt;,
 ## #   sprinklered &lt;lgl&gt;, risk_tier &lt;chr&gt;, training_holdout &lt;chr&gt;</code></pre>
+<pre class="r"><code># Grouping the continous variables into 3 bands to make the pricing model easier to rate 
+data &lt;- data |&gt;
+  mutate(
+    gpa_interval= case_when(
+      gpa&lt;1 ~ &quot;Sub 1.0&quot;,
+      gpa&lt;3 ~ &quot;1.0 to 2.99&quot;,
+      gpa&gt;=3 ~&quot;Greater than 3&quot;
+    ),
+    
+    distance_interval= case_when(
+    distance_to_campus==0 ~ &quot;Living On Campus&quot;,
+    distance_to_campus &lt;=1 ~ &quot;Living 1 mile or less from Campus&quot;,
+    distance_to_campus &gt; 1 ~ &quot; Living more than 1 mile from Campus&quot;
+  )
+)</code></pre>
 </div>
 <div id="personal-property" class="section level1">
 <h1>1. Personal Property</h1>
