@@ -133,11 +133,691 @@ data |>
 
 # Data Visualizations
 
+
+## Distribution of Claim Amounts
+
 ```{r}
+hist(data$amount,
+     breaks = 30,
+     col = "thistle",
+     xlab = "Amount",
+     main = "Distribution of All Claim Amounts")
+```
+
+```{r}
+hist(data |>
+       filter(amount > 0) |>
+       pull(amount),
+     breaks = 50,
+     col = "palegreen3",
+     xlab = "Claim Amount",
+     main = "Distribution of Nonzero Claim Amounts")
+```
+
+```{r}
+hist(log(data |> 
+           filter(amount > 0) |>
+           pull(amount)),
+     breaks = 20,
+     col = "aquamarine3",
+     xlab = "log(Claim)",
+     main = "Distribution of Log-Transformed Claim Amounts")
+```
+
+
+
+# ALE segmenting
+```{r}
+data |>
+  filter(coverage == "Additional Living Expense") |>
+  mutate(gpa_group = cut(
+    gpa,
+    breaks = seq(0, 4, by = 0.5),
+    include.lowest = TRUE
+  )) |>
+  group_by(student_id, risk_tier, gpa_group) |>
+  summarize(
+    total_amount = sum(amount),
+    had_claim = any(amount > 0),
+    .groups = "drop"
+  ) |>
+  group_by(risk_tier, gpa_group) |>
+  summarize(
+    num_policyholders = n(),
+    num_with_claim = sum(had_claim),
+    claim_frequency = round(mean(had_claim), 3),
+    avg_amount_per_policyholder = round(mean(total_amount), 2),
+    avg_loss_per_claimant = round(mean(total_amount[had_claim]), 2),
+    .groups = "drop"
+  )
+```
+```{r}
+
+
+gpa_summary <- data |>
+  filter(
+    coverage == "Additional Living Expense",
+    training_holdout == "training"
+  ) |>
+  mutate(gpa_group = cut(
+    gpa,
+    breaks = c(0, 1, 3, 4),
+    include.lowest = TRUE
+  )) |>
+  group_by(student_id, risk_tier, gpa_group) |>
+  summarize(
+    total_amount = sum(amount),
+    had_claim = any(amount > 0),
+    .groups = "drop"
+  ) |>
+  group_by(risk_tier, gpa_group) |>
+  summarize(
+    num_policyholders = n(),
+    num_with_claim = sum(had_claim),
+    claim_frequency = mean(had_claim),
+    avg_amount_per_policyholder = mean(total_amount),
+    avg_loss_per_claimant = mean(total_amount[had_claim]),
+    .groups = "drop"
+  )
+gpa_summary
+
+```
+```{r}
+ggplot(
+  gpa_summary,
+  aes(
+    x = gpa_group,
+    y = avg_amount_per_policyholder
+  )
+) +
+  geom_col() +
+  facet_wrap(~ risk_tier, ncol = 1) +
+  labs(
+    title = "ALE Average Loss per Policyholder by GPA and Risk Tier",
+    x = "GPA Range",
+    y = "Average ALE Loss per Policyholder"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
+
+```
+```{r}
+gpa_all_coverages <- data |>
+  filter(training_holdout == "training") |>
+  mutate(gpa_group = cut(
+    gpa,
+    breaks = c(0, 1, 3, 4),
+    include.lowest = TRUE
+  )) |>
+  group_by(student_id, coverage, risk_tier, gpa_group) |>
+  summarize(
+    total_amount = sum(amount),
+    had_claim = any(amount > 0),
+    .groups = "drop"
+  ) |>
+  group_by(coverage, risk_tier, gpa_group) |>
+  summarize(
+    num_policyholders = n(),
+    num_with_claim = sum(had_claim),
+    claim_frequency = mean(had_claim),
+    avg_amount_per_policyholder = mean(total_amount),
+    avg_loss_per_claimant = mean(total_amount[had_claim]),
+    .groups = "drop"
+  )
 
 ```
 
 
+```{r}
+
+ggplot(
+  gpa_all_coverages,
+  aes(
+    x = gpa_group,
+    y = avg_amount_per_policyholder
+  )
+) +
+  geom_col() +
+  facet_grid(coverage ~ risk_tier, scales = "free_y") +
+  labs(
+    title = "Average Loss per Policyholder by GPA, Coverage, and Risk Tier",
+    x = "GPA Range",
+    y = "Average Loss per Policyholder"
+  ) +
+  theme_minimal()
+```
+```{r}
+gpa_all_coverages |>
+  select(
+    coverage,
+    risk_tier,
+    gpa_group,
+    num_policyholders,
+    num_with_claim
+  )
+
+```
+
+# OTHER VARIABLES
+# DISTANCE TO CAMPUS
+
+```{r}
+data |>
+  filter(training_holdout == "training") |>
+  summarize(
+    min_distance = min(distance_to_campus),
+    q1 = quantile(distance_to_campus, 0.25),
+    median = median(distance_to_campus),
+    q3 = quantile(distance_to_campus, 0.75),
+    max_distance = max(distance_to_campus),
+    mean_distance = mean(distance_to_campus)
+  )
+
+data |>
+  filter(training_holdout == "training") |>
+  distinct(student_id, .keep_all = TRUE) |>
+  ggplot(aes(x = distance_to_campus)) +
+  geom_histogram(bins = 30) +
+  labs(
+    title = "Distribution of Distance to Campus",
+    x = "Distance to Campus",
+    y = "Number of Policyholders"
+  ) +
+  theme_minimal()
+
+data |>
+  filter(
+    training_holdout == "training",
+    distance_to_campus > 0
+  ) |>
+  distinct(student_id, .keep_all = TRUE) |>
+  summarize(
+    num_students = n(),
+    min = min(distance_to_campus),
+    q1 = quantile(distance_to_campus, 0.25),
+    median = median(distance_to_campus),
+    q3 = quantile(distance_to_campus, 0.75),
+    max = max(distance_to_campus)
+  )
+```
+
+
+#testing ALE for distance_to_campus
+
+```{r}
+distance_summary <- data |>
+  filter(
+    coverage == "Additional Living Expense",
+    training_holdout == "training"
+  ) |>
+  mutate(distance_group = cut(
+    distance_to_campus,
+    breaks = c(-Inf, 0, 1, 3, 6, Inf),
+    labels = c("0", "0-1", "1-3", "3-6", "6+")
+  )) |>
+  group_by(student_id, risk_tier, distance_group) |>
+  summarize(
+    total_amount = sum(amount),
+    had_claim = any(amount > 0),
+    .groups = "drop"
+  ) |>
+  group_by(risk_tier, distance_group) |>
+  summarize(
+    num_policyholders = n(),
+    num_with_claim = sum(had_claim),
+    claim_frequency = mean(had_claim),
+    avg_amount_per_policyholder = mean(total_amount),
+    avg_loss_per_claimant = mean(total_amount[had_claim]),
+    .groups = "drop"
+  )
+
+ggplot(
+  distance_summary,
+  aes(
+    x = distance_group,
+    y = avg_amount_per_policyholder
+  )
+) +
+  geom_col() +
+  facet_wrap(~ risk_tier, ncol = 1) +
+  labs(
+    title = "ALE Average Loss per Policyholder by Distance to Campus",
+    x = "Distance to Campus",
+    y = "Average ALE Loss per Policyholder"
+  ) +
+  theme_minimal()
+
+distance_summary
+
+
+```
+# trying to figure out impact of off/on campus
+
+```{r}
+data |>
+  filter(training_holdout == "training") |>
+  distinct(student_id, .keep_all = TRUE) |>
+  count(off_campus, distance_zero = distance_to_campus == 0)
+
+```
+
+# graphing all 4 coverages for distance to campus
+```{r}
+distance_all_coverages <- data |>
+  filter(training_holdout == "training") |>
+  mutate(distance_group = cut(
+    distance_to_campus,
+    breaks = c(-Inf, 0, 1, 3, 6, Inf),
+    labels = c("0", "0-1", "1-3", "3-6", "6+")
+  )) |>
+  group_by(student_id, coverage, risk_tier, distance_group) |>
+  summarize(
+    total_amount = sum(amount),
+    had_claim = any(amount > 0),
+    .groups = "drop"
+  ) |>
+  group_by(coverage, risk_tier, distance_group) |>
+  summarize(
+    num_policyholders = n(),
+    num_with_claim = sum(had_claim),
+    claim_frequency = mean(had_claim),
+    avg_amount_per_policyholder = mean(total_amount),
+    avg_loss_per_claimant = mean(total_amount[had_claim]),
+    .groups = "drop"
+  )
+
+ggplot(
+  distance_all_coverages,
+  aes(
+    x = distance_group,
+    y = avg_amount_per_policyholder
+  )
+) +
+  geom_col() +
+  facet_grid(coverage ~ risk_tier, scales = "free_y") +
+  labs(
+    title = "Average Loss per Policyholder by Distance, Coverage, and Risk Tier",
+    x = "Distance to Campus",
+    y = "Average Loss per Policyholder"
+  ) +
+  theme_minimal()
+
+distance_all_coverages |>
+  select(
+    coverage,
+    risk_tier,
+    distance_group,
+    num_policyholders,
+    num_with_claim
+  )
+
+
+```
+
+# SPRINKLERED
+
+```{r}
+
+sprinkler_summary <- data |>
+  filter(training_holdout == "training") |>
+  group_by(student_id, coverage, risk_tier, sprinklered) |>
+  summarize(
+    total_amount = sum(amount),
+    had_claim = any(amount > 0),
+    .groups = "drop"
+  ) |>
+  group_by(coverage, risk_tier, sprinklered) |>
+  summarize(
+    num_policyholders = n(),
+    num_with_claim = sum(had_claim),
+    claim_frequency = mean(had_claim),
+    avg_amount_per_policyholder = mean(total_amount),
+    avg_loss_per_claimant = mean(total_amount[had_claim]),
+    .groups = "drop"
+  )
+
+sprinkler_plot <- ggplot(
+  sprinkler_summary,
+  aes(x = sprinklered, y = avg_amount_per_policyholder)
+) +
+  geom_col() +
+  facet_grid(
+    coverage ~ risk_tier,
+    scales = "free_y",
+    labeller = labeller(
+      coverage = c(
+        "Additional Living Expense" = "ALE",
+        "Guest Medical" = "GM",
+        "Liability" = "Liability",
+        "Personal Property" = "PP"
+      )
+    )
+  ) +
+  labs(
+    title = "Average Loss per Policyholder by Sprinkler Status, Coverage, and Risk Tier",
+    x = "Sprinklered",
+    y = "Average Loss per Policyholder"
+  ) +
+  theme_minimal()
+
+sprinkler_plot
+
+sprinkler_summary |>
+  select(
+    coverage,
+    risk_tier,
+    sprinklered,
+    num_policyholders,
+    num_with_claim
+  )
+
+ggsave(
+  "~/Desktop/sprinkler_status.png",
+  plot = sprinkler_plot,
+  width = 12,
+  height = 7,
+  dpi = 300,
+  bg = "white"
+)
+
+```
+# GREEK LIFE
+
+```{r}
+greek_summary <- data |>
+  filter(training_holdout == "training") |>
+  group_by(student_id, coverage, risk_tier, greek) |>
+  summarize(
+    total_amount = sum(amount),
+    had_claim = any(amount > 0),
+    .groups = "drop"
+  ) |>
+  group_by(coverage, risk_tier, greek) |>
+  summarize(
+    num_policyholders = n(),
+    num_with_claim = sum(had_claim),
+    claim_frequency = mean(had_claim),
+    avg_amount_per_policyholder = mean(total_amount),
+    avg_loss_per_claimant = mean(total_amount[had_claim]),
+    .groups = "drop"
+  )
+
+ggplot(
+  greek_summary,
+  aes(x = greek, y = avg_amount_per_policyholder)
+) +
+  geom_col() +
+  facet_grid(
+    coverage ~ risk_tier,
+    scales = "free_y",
+    labeller = labeller(
+      coverage = c(
+        "Additional Living Expense" = "ALE",
+        "Guest Medical" = "GM",
+        "Liability" = "Liability",
+        "Personal Property" = "PP"
+      )
+    )
+  ) +
+  labs(
+    title = "Average Loss per Policyholder by Greek Status, Coverage, and Risk Tier",
+    x = "Greek Status",
+    y = "Average Loss per Policyholder"
+  ) +
+  theme_minimal()
+
+greek_summary |>
+  select(
+    coverage,
+    risk_tier,
+    greek,
+    num_policyholders,
+    num_with_claim
+  )
+
+ggsave(
+  "greek_status.png",
+  width = 12,
+  height = 7,
+  dpi = 300,
+  bg = "white"
+)
+
+getwd()
+```
+
+# CLASS
+
+```{r}
+
+class_summary <- data |>
+  filter(training_holdout == "training") |>
+  group_by(student_id, coverage, risk_tier, class) |>
+  summarize(
+    total_amount = sum(amount),
+    had_claim = any(amount > 0),
+    .groups = "drop"
+  ) |>
+  group_by(coverage, risk_tier, class) |>
+  summarize(
+    num_policyholders = n(),
+    num_with_claim = sum(had_claim),
+    claim_frequency = mean(had_claim),
+    avg_amount_per_policyholder = mean(total_amount),
+    avg_loss_per_claimant = mean(total_amount[had_claim]),
+    .groups = "drop"
+  )
+
+ggplot(
+  class_summary,
+  aes(
+    x = class,
+    y = avg_amount_per_policyholder
+  )
+) +
+  geom_col() +
+  facet_grid(coverage ~ risk_tier, scales = "free_y") +
+  labs(
+    title = "Average Loss per Policyholder by Class, Coverage, and Risk Tier",
+    x = "Class",
+    y = "Average Loss per Policyholder"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
+class_summary |>
+  select(
+    coverage,
+    risk_tier,
+    class,
+    num_policyholders,
+    num_with_claim
+  )
+
+```
+```{r}
+table(data$class, data$risk_tier)
+```
+# investigating off campus and distance to campus
+
+```{r}
+data |>
+  filter(training_holdout == "training") |>
+  distinct(student_id, off_campus, distance_to_campus) |>
+  group_by(off_campus) |>
+  summarize(
+    num_students = n(),
+    min_distance = min(distance_to_campus),
+    max_distance = max(distance_to_campus),
+    mean_distance = mean(distance_to_campus)
+  )
+
+offcampus_summary <- data |>
+  filter(training_holdout == "training") |>
+  group_by(student_id, coverage, risk_tier, off_campus) |>
+  summarize(
+    total_amount = sum(amount),
+    had_claim = any(amount > 0),
+    .groups = "drop"
+  ) |>
+  group_by(coverage, risk_tier, off_campus) |>
+  summarize(
+    num_policyholders = n(),
+    num_with_claim = sum(had_claim),
+    claim_frequency = mean(had_claim),
+    avg_amount_per_policyholder = mean(total_amount),
+    avg_loss_per_claimant = mean(total_amount[had_claim]),
+    .groups = "drop"
+  )
+
+offcampus_summary
+
+offcampus_plot <- ggplot(
+  offcampus_summary,
+  aes(x = off_campus, y = avg_amount_per_policyholder)
+) +
+  geom_col() +
+  facet_grid(
+    coverage ~ risk_tier,
+    scales = "free_y",
+    labeller = labeller(
+      coverage = c(
+        "Additional Living Expense" = "ALE",
+        "Guest Medical" = "GM",
+        "Liability" = "Liability",
+        "Personal Property" = "PP"
+      )
+    )
+  ) +
+  labs(
+    title = "Average Loss per Policyholder by Campus Status, Coverage, and Risk Tier",
+    x = "Campus Status",
+    y = "Average Loss per Policyholder"
+  ) +
+  theme_minimal()
+
+offcampus_plot
+
+ggsave(
+  "~/Desktop/campus_status.png",
+  plot = offcampus_plot,
+  width = 12,
+  height = 7,
+  dpi = 300,
+  bg = "white"
+)
+
+
+```
+# STUDY (aka MAJOR)
+
+```{r}
+data |>
+  filter(training_holdout == "training") |>
+  distinct(student_id, study) |>
+  count(study, sort = TRUE)
+
+study_summary <- data |>
+  filter(training_holdout == "training") |>
+  group_by(student_id, coverage, risk_tier, study) |>
+  summarize(
+    total_amount = sum(amount),
+    had_claim = any(amount > 0),
+    .groups = "drop"
+  ) |>
+  group_by(coverage, risk_tier, study) |>
+  summarize(
+    num_policyholders = n(),
+    num_with_claim = sum(had_claim),
+    claim_frequency = mean(had_claim),
+    avg_amount_per_policyholder = mean(total_amount),
+    avg_loss_per_claimant = mean(total_amount[had_claim]),
+    .groups = "drop"
+  )
+
+ggplot(
+  study_summary,
+  aes(
+    x = study,
+    y = avg_amount_per_policyholder
+  )
+) +
+  geom_col() +
+  facet_grid(coverage ~ risk_tier, scales = "free_y") +
+  labs(
+    title = "Average Loss per Policyholder by Major, Coverage, and Risk Tier",
+    x = "Major",
+    y = "Average Loss per Policyholder"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
+study_summary |>
+  select(
+    coverage,
+    risk_tier,
+    study,
+    num_policyholders,
+    num_with_claim
+  )
+```
+# GENDER
+
+```{r}
+data |>
+  distinct(student_id, gender) |>
+  count(gender, sort = TRUE)
+
+gender_summary <- data |>
+  group_by(student_id, coverage, risk_tier, gender) |>
+  summarize(
+    total_amount = sum(amount),
+    had_claim = any(amount > 0),
+    .groups = "drop"
+  ) |>
+  group_by(coverage, risk_tier, gender) |>
+  summarize(
+    num_policyholders = n(),
+    num_with_claim = sum(had_claim),
+    claim_frequency = mean(had_claim),
+    avg_amount_per_policyholder = mean(total_amount),
+    avg_loss_per_claimant = ifelse(
+      num_with_claim > 0,
+      mean(total_amount[had_claim]),
+      NA
+    ),
+    .groups = "drop"
+  )
+
+gender_summary
+
+ggplot(
+  gender_summary,
+  aes(x = gender, y = avg_amount_per_policyholder)
+) +
+  geom_col() +
+  facet_grid(
+    coverage ~ risk_tier,
+    scales = "free_y"
+  ) +
+  labs(
+    title = "Average Loss per Policyholder by Gender, Coverage, and Risk Tier",
+    x = "Gender",
+    y = "Average Loss per Policyholder"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
+```
 
 
 
