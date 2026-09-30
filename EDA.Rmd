@@ -17,6 +17,31 @@ data <- read_csv("06 - CAS Predictive Modeling Case Competition- Dataset.csv")
 head(data)
 ```
 
+# Data Preprocessing
+
+```{r}
+#Combining Multiple Claims made by the same policyholder and coverage
+data <- data |>
+  group_by(student_id,coverage) |>
+  summarize(
+    amount= sum(amount, na.rm = TRUE),
+    name= first(name),
+    class=first(class),
+    study=first(study),
+    gpa=first(gpa),
+    greek= first(greek),
+    off_campus= first(off_campus),
+    distance_to_campus = first(distance_to_campus),
+    gender= first(gender),
+    sprinklered =first(sprinklered),
+    risk_tier= first(risk_tier),
+    training_holdout= first(training_holdout),
+    .groups = "drop"
+)
+
+head(data)
+```
+
 # EDA
 
 ## Among Tiers
@@ -80,7 +105,7 @@ data |>
   summarize(avg_amount_per_policyholder = mean(avg_amount))
 ```
 
-## Data Validation
+# Data Validation
 
 No claim amounts seem to exceed the insurance's maximum coverage. 
 
@@ -105,3 +130,27 @@ data |>
   pull(amount) |>
   max()
 ```
+
+# Data Visualizations
+
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

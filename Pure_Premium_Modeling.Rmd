@@ -291,6 +291,8 @@ living_exp_full_model <- glm(
   family = tweedie(var.power = p_hat, link.power = 0),
   control = glm.control(maxit = 15)
 )
+
+summary(living_exp_full_model)
 ```
 
 ```{r}
@@ -472,7 +474,7 @@ col_means <- colMeans(holdout[c("amount", "pred")])
 
 barplot(col_means, 
         col = c("goldenrod1", "royalblue4"),
-        main = "Liability Amount: \n Actual vs. Predicted \n (Full Model)",
+        main = "Average Liability Amount: \n Actual vs. Predicted \n (Full Model)",
         names.arg = c("Actual", "Predicted"), 
         ylim = c(0, 150),
         ylab = "Average Value")
@@ -542,7 +544,7 @@ col_means <- colMeans(holdout[c("amount", "pred")])
 
 barplot(col_means, 
         col = c("goldenrod1", "royalblue4"),
-        main = "Liability Amount: \n Actual vs. Predicted \n (Reduced Model)",
+        main = "Average Liability Amount: \n Actual vs. Predicted \n (Reduced Model)",
         names.arg = c("Actual", "Predicted"), 
         ylim = c(0, 150),
         ylab = "Average Value")
@@ -623,7 +625,7 @@ col_means <- colMeans(holdout[c("amount", "pred")])
 
 barplot(col_means, 
         col = c("goldenrod1", "royalblue4"),
-        main = "Guest Medical Amount: \n Actual vs. Predicted \n (Full Model)",
+        main = "Average Guest Medical Amount: \n Actual vs. Predicted \n (Full Model)",
         names.arg = c("Actual", "Predicted"), 
         ylim = c(0, 500),
         ylab = "Average Value")
@@ -693,7 +695,7 @@ col_means <- colMeans(holdout[c("amount", "pred")])
 
 barplot(col_means, 
         col = c("goldenrod1", "royalblue4"),
-        main = "Guest Medical Amount: \n Actual vs. Predicted \n (Reduced Model)",
+        main = "Average Guest Medical Amount: \n Actual vs. Predicted \n (Reduced Model)",
         names.arg = c("Actual", "Predicted"), 
         ylim = c(0, 500),
         ylab = "Average Value")
